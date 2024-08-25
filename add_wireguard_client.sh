@@ -26,7 +26,7 @@ wg genkey | tee $CLIENT_PRIVATE_KEY | wg pubkey | tee $CLIENT_PUBLIC_KEY
 CLIENT_PRIVATE_KEY_CONTENT=$(cat $CLIENT_PRIVATE_KEY)
 CLIENT_PUBLIC_KEY_CONTENT=$(cat $CLIENT_PUBLIC_KEY)
 SERVER_PUBLIC_KEY=$(cat $WG_DIR/publickey)  # Публичный ключ сервера
-SERVER_IP="217.196.101.151"  # IP-адрес сервера
+SERVER_IP="111.222.333.444"  # IP-адрес сервера (надо поменять на свой)
 SERVER_PORT="51830"  # Порт WireGuard сервера
 
 # Присвоение IP-адреса клиенту (измените диапазон, если нужно)
