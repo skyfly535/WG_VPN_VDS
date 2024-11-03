@@ -26,13 +26,17 @@ Ansible playbook выполняет следующие действия:
         update_cache: yes
         upgrade: dist
 
+    - name: Get kernel version
+      command: uname -r
+      register: kernel_version
+
     - name: Install WireGuard and required packages
       apt:
         name:
           - wireguard
           - wireguard-tools
           - qrencode
-          - linux-headers-$(uname -r)
+          - "linux-headers-{{ kernel_version.stdout }}"
           - dkms
         state: present
 
@@ -68,15 +72,23 @@ Ansible playbook выполняет следующие действия:
       command: wg genpsk
       register: psk
 
-    - name: Retrieve network interface with public IP
-      command: ip -o addr show scope global | awk '$4 !~ /^(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\./ {print $2}' | head -n 1
-      register: interface_output
+    - name: Retrieve network interface with public IP using Ansible facts
+      set_fact:
+        interface_output: "{{ ansible_default_ipv4.interface }}"
+
+    - name: Debug interface_output
+      debug:
+        msg: "interface_output is {{ interface_output }}"
       
     - name: Create WireGuard server config
       template:
         src: wg0.conf.j2
         dest: /etc/wireguard/wg0.conf
         mode: '0600'
+
+    - name: Stop WireGuard interface if already active
+      command: wg-quick down wg0
+      ignore_errors: yes
 
     - name: Start WireGuard interface
       command: wg-quick up wg0
