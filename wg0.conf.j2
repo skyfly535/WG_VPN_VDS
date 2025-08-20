@@ -1,15 +1,8 @@
 [Interface]
-Address = 10.0.0.1/24
-SaveConfig = true
 PrivateKey = {{ server_private_key.stdout }}
+Address = 10.0.0.1/24
 ListenPort = 51820
 
 # Firewall rules
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ interface_output }} -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ interface_output }} -j MASQUERADE
-
-[Peer]
-# Client 1
-PublicKey = CLIENT_PUBLIC_KEY
-PresharedKey = {{ psk.stdout }}
-AllowedIPs = 10.0.0.2/32

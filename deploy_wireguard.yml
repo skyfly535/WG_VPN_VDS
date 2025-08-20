@@ -9,14 +9,19 @@
         update_cache: yes
         upgrade: dist
 
+    - name: Get kernel version
+      command: uname -r
+      register: kernel_version
+
     - name: Install WireGuard and required packages
       apt:
         name:
           - wireguard
           - wireguard-tools
           - qrencode
-          - linux-headers-$(uname -r)
+          - "linux-headers-{{ kernel_version.stdout }}"
           - dkms
+          - mc
         state: present
 
     - name: Enable IP forwarding
@@ -42,18 +47,32 @@
     - name: Generate server private key
       command: wg genkey
       register: server_private_key
+      changed_when: false  # Всегда выполняется, но не меняет состояние системы
 
     - name: Generate server public key
-      command: echo "{{ server_private_key.stdout }}" | wg pubkey
+      shell: "echo '{{ server_private_key.stdout }}' | wg pubkey"
       register: server_public_key
+      changed_when: false
 
-    - name: Generate pre-shared key
-      command: wg genpsk
-      register: psk
+    # - name: Generate pre-shared key
+    #   command: wg genpsk
+    #   register: psk
 
-    - name: Retrieve network interface with public IP
-      command: ip -o addr show scope global | awk '$4 !~ /^(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\./ {print $2}' | head -n 1
-      register: interface_output
+    - name: Save server public key
+      copy:
+        content: "{{ server_public_key.stdout }}"
+        dest: /etc/wireguard/publickey
+        mode: '0644'
+        owner: root
+        group: root  
+
+    - name: Retrieve network interface with public IP using Ansible facts
+      set_fact:
+        interface_output: "{{ ansible_default_ipv4.interface }}"
+
+    - name: Debug interface_output
+      debug:
+        msg: "interface_output is {{ interface_output }}"
       
     - name: Create WireGuard server config
       template:
@@ -61,14 +80,40 @@
         dest: /etc/wireguard/wg0.conf
         mode: '0600'
 
-    - name: Start WireGuard interface
-      command: wg-quick up wg0
+    - name: Copy client management script
+      copy:
+        src: add_wireguard_client_new.sh
+        dest: /etc/wireguard/add_wireguard_client_new.sh
+        mode: '0755'  # Делаем исполняемым
+        owner: root
+        group: root    
 
-    - name: Enable WireGuard to start on boot
+    - name: Check if WireGuard interface exists
+      command: ip link show wg0
+      register: wg_interface_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Stop WireGuard interface if exists
+      command: wg-quick down wg0
+      when: wg_interface_check.rc == 0
+
+    - name: Enable and start WireGuard service
       systemd:
         name: wg-quick@wg0
         enabled: yes
-        state: started
+        state: restarted  # Используем restarted вместо started
+      async: 45  # Даем время на запуск
+      poll: 5
+
+    - name: Verify WireGuard status
+      command: wg show
+      register: wg_status
+      changed_when: false
+
+    - name: Debug WireGuard status
+      debug:
+        var: wg_status.stdout
 
 ### Templates
 
